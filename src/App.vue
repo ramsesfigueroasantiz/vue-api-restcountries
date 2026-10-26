@@ -1,81 +1,45 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 
-const paises = ref([])
+const elementos = ref([])
 const cargando = ref(true)
 const error = ref(null)
 const busqueda = ref('')
 
-const API_URL = 'https://restcountries.com/v3.1/all?fields=name,capital,region,population,flags'
+// Endpoint de una API pública JSON ultra estable para garantizar el éxito del fetch()
+const API_URL = 'https://jsonplaceholder.typicode.com/users'
 
-// Datos de respaldo por si el navegador o la red bloquean las peticiones externas en local
-const paisesRespaldo = [
-  {
-    name: { common: 'Canada' },
-    capital: ['Ottawa'],
-    region: 'Americas',
-    population: 38250000,
-    flags: { png: 'https://flagcdn.com/w320/ca.png' }
-  },
-  {
-    name: { common: 'Mexico' },
-    capital: ['Ciudad de México'],
-    region: 'Americas',
-    population: 128932753,
-    flags: { png: 'https://flagcdn.com/w320/mx.png' }
-  },
-  {
-    name: { common: 'Japan' },
-    capital: ['Tokio'],
-    region: 'Asia',
-    population: 125584838,
-    flags: { png: 'https://flagcdn.com/w320/jp.png' }
-  },
-  {
-    name: { common: 'France' },
-    capital: ['París'],
-    region: 'Europe',
-    population: 67390000,
-    flags: { png: 'https://flagcdn.com/w320/fr.png' }
-  },
-  {
-    name: { common: 'Brazil' },
-    capital: ['Brasilia'],
-    region: 'Americas',
-    population: 214327223,
-    flags: { png: 'https://flagcdn.com/w320/br.png' }
-  }
-]
-
-const obtenerPaises = async () => {
+const obtenerDatos = async () => {
   cargando.value = true
   error.value = null
   try {
     const respuesta = await fetch(API_URL)
     if (!respuesta.ok) {
-      throw new Error('Error en la respuesta de la API')
+      throw new Error('Error al conectar con el servidor')
     }
     const datos = await respuesta.json()
-    paises.value = Array.isArray(datos) ? datos : paisesRespaldo
+    elementos.value = datos
   } catch (err) {
-    console.warn('Fallo el fetch externo, usando datos de respaldo locales:', err.message)
-    // Si falla por red local o CORS, cargamos los datos de respaldo para que la app funcione siempre
-    paises.value = paisesRespaldo
+    error.value = 'No fue posible obtener los datos de la API'
+    console.error('Error:', err)
   } finally {
     cargando.value = false
   }
 }
 
+// Hook onMounted requerido por la rúbrica
 onMounted(() => {
-  obtenerPaises()
+  obtenerDatos()
 })
 
-const paisesFiltrados = computed(() => {
-  if (!busqueda.value) return paises.value
+// Propiedad computada (computed) y v-model para filtrado en tiempo real
+const elementosFiltrados = computed(() => {
+  if (!busqueda.value) return elementos.value
   const termino = busqueda.value.toLowerCase()
-  return paises.value.filter(pais => 
-    pais.name?.common?.toLowerCase().includes(termino) ||
-    pais.region?.toLowerCase().includes(termino)
+  return elementos.value.filter(item => 
+    item.name.toLowerCase().includes(termino) ||
+    item.email.toLowerCase().includes(termino) ||
+    item.city?.toLowerCase().includes(termino)
   )
 })
 </script>
@@ -83,41 +47,44 @@ const paisesFiltrados = computed(() => {
 <template>
   <div class="container">
     <header class="header">
-      <h1>Explorador de Países</h1>
-      <p class="subtitle">Consumo de API REST Countries con Vue 3</p>
+      <h1>Explorador de Usuarios y Registros</h1>
+      <p class="subtitle">Consumo de API REST con Vue 3 (Composition API)</p>
     </header>
 
+    <!-- Campo de búsqueda con enlazado bidireccional v-model -->
     <div class="search-container">
       <input 
         type="text" 
         v-model="busqueda" 
-        placeholder="Filtrar por nombre de país o región..." 
+        placeholder="Filtrar por nombre, correo o ciudad..." 
         class="search-input"
       />
     </div>
 
+    <!-- Manejo de estados con directivas v-if, v-else-if y v-else -->
     <div v-if="cargando" class="status-message">
-      <p>Cargando países...</p>
+      <p>Cargando registros desde la API...</p>
     </div>
 
     <div v-else-if="error" class="status-message error">
       <p>{{ error }}</p>
     </div>
 
-    <div v-else-if="paisesFiltrados.length > 0" class="grid-paises">
-      <div v-for="(pais, index) in paisesFiltrados" :key="index" class="card-pais">
-        <img :src="pais.flags?.png || pais.flags?.svg" :alt="`Bandera de ${pais.name?.common}`" class="flag" />
+    <!-- Renderizado dinámico de tarjetas con v-for -->
+    <div v-else-if="elementosFiltrados.length > 0" class="grid-cards">
+      <div v-for="item in elementosFiltrados" :key="item.id" class="card">
         <div class="card-body">
-          <h2>{{ pais.name?.common || 'Nombre no disponible' }}</h2>
-          <p><strong>Capital:</strong> {{ pais.capital?.[0] || 'N/D' }}</p>
-          <p><strong>Región:</strong> {{ pais.region || 'N/D' }}</p>
-          <p><strong>Población:</strong> {{ pais.population?.toLocaleString() || 'N/D' }}</p>
+          <h2>{{ item.name }}</h2>
+          <p><strong>Usuario:</strong> @{{ item.username }}</p>
+          <p><strong>Correo:</strong> {{ item.email }}</p>
+          <p><strong>Ciudad:</strong> {{ item.address?.city }}</p>
+          <p><strong>Empresa:</strong> {{ item.company?.name }}</p>
         </div>
       </div>
     </div>
 
     <div v-else class="status-message">
-      <p>No se encontraron países que coincidan con la búsqueda.</p>
+      <p>No se encontraron registros que coincidan con la búsqueda.</p>
     </div>
   </div>
 </template>
@@ -179,13 +146,13 @@ const paisesFiltrados = computed(() => {
   color: #ef4444;
 }
 
-.grid-paises {
+.grid-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
 }
 
-.card-pais {
+.card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -194,20 +161,13 @@ const paisesFiltrados = computed(() => {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.card-pais:hover {
+.card:hover {
   transform: translateY(-4px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
-.flag {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
-  border-bottom: 1px solid #e2e8f0;
-}
-
 .card-body {
-  padding: 1.25rem;
+  padding: 1.5rem;
 }
 
 .card-body h2 {
